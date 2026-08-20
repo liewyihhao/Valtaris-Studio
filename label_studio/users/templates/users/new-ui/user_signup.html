@@ -44,7 +44,7 @@
         {% endif %}
       </div>
       <div class="input-wrapper">
-        <label>How did you hear about Label Studio?</label>
+        <label>How did you hear about Valtaris Studio?</label>
         <select class="lsf-select-ls" name="how_find_us" id="how_find_us">
           <option disabled value="" {% if not form.data.how_find_us %}selected{% endif %}>Select an option</option>
           {% for choice in found_us_options %}
@@ -63,9 +63,7 @@
                 type="checkbox" style="width: auto" {% if user_form.data.allow_newsletters == 'false' %}{% else %}checked="checked{% endif %}"
                 onchange="document.getElementById('allow_newsletters').value=document.getElementById('allow_newsletters_visual').checked">
         <label for="allow_newsletters_visual" style="display: inline-block; cursor: pointer;">
-          Get the latest news from Heidi
-          <img src="{{ settings.HOSTNAME }}{% static 'images/heidi.png' %}" alt="Heidi"
-              width="25" style="position: absolute; right: -2.5em; top: -.25rem;">
+          Get the latest product news
         </label>
       </div>
 

@@ -15,53 +15,20 @@
       {
         title: "Did you know?",
         description:
-          "You can sync data from all popular cloud storage providers to collect new items for labeling as they are uploaded, and return the annotation results to train and continuously improve models.",
-        link: {
-          label: "Learn more",
-          url: "https://labelstud.io/guide/storage",
-          params: {
-            experiment: "login_revamp",
-            treatment: "sync_cloud_data",
-          },
-        },
+          "You can sync data from all popular cloud storage providers to collect new items for labeling as they are uploaded, and return annotation results to train and continuously improve your models.",
+        link: { label: "Learn more", url: "https://labelstud.io/guide/storage", params: {} },
       },
       {
         title: "Did you know?",
         description:
-          "There's an Enterprise version of Label Studio packed with more features and automation to label data faster while ensuring the highest quality.",
-        link: {
-          label: "Learn more",
-          url: "https://humansignal.com/goenterprise/",
-          params: {
-            experiment: "login_revamp",
-            treatment: "enterprise_platform",
-          },
-        },
+          "Valtaris Studio ships with dozens of pre-built templates — from image classification to sentiment analysis to supervised LLM fine-tuning — so you can configure your labeling UI in minutes.",
+        link: { label: "See all templates", url: "https://labelstud.io/templates", params: {} },
       },
       {
         title: "Did you know?",
         description:
-          "Label Studio has dozens of pre-built templates for all data types you can use to configure your labeling UI, from image classification to sentiment analysis to supervised LLM fine-tuning. ",
-        link: {
-          label: "See all templates",
-          url: "https://labelstud.io/templates",
-          params: {
-            experiment: "login_revamp",
-            treatment: "templates",
-          },
-        },
-      },
-      {
-        title: "Did you know?",
-        description: "Label Studio now has a Starter Cloud offering optimized for small teams and projects.",
-        link: {
-          label: "Learn more",
-          url: "https://humansignal.com/pricing/",
-          params: {
-            experiment: "login_revamp",
-            treatment: "starter_cloud"
-          }
-        }
+          "You can connect machine learning models to pre-label your data and speed up annotation with model predictions.",
+        link: { label: "Learn more", url: "https://labelstud.io/guide/ml", params: {} },
       },
     ],
   };
@@ -79,6 +46,7 @@
   }
 
   const loadLiveTipsCollection = () => {
+    return defaultTipsCollection; // Valtaris: use local tips, skip external fetch
     // stale while revalidate - we will return the data present in the cache or the default data and fetch updated data to be put into the cache for the next time this function is called without waiting for the promise.
     const cachedData = localStorage.getItem(CACHE_KEY);
     const fetchedAt = localStorage.getItem(CACHE_FETCHED_AT_KEY);
