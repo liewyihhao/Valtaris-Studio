@@ -7,9 +7,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="author" content="Label Studio"/>
+  <meta name="author" content="Valtaris Studio"/>
   <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=0.9, shrink-to-fit=no">
+
+  <!-- Valtaris brand fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 
   <!-- Address string color -->
   <meta name="theme-color" content="#272727"> <!-- Chrome, Firefox OS and Opera -->
@@ -56,7 +61,8 @@
   </script>
 
   {% block page_labeling %}
-    <title>Label Studio</title>
+    <title>Valtaris Studio</title>
+    <link href="{{settings.HOSTNAME}}{% static 'images/favicon.svg' %}" rel="icon" type="image/svg+xml"/>
     <link href="{{settings.HOSTNAME}}{% static 'images/favicon.ico' %}" rel="shortcut icon"/>
   {% endblock %}
 
@@ -144,7 +150,7 @@
     },
 
     {% block app_more_settings %}
-      page_title: "Label Studio",
+      page_title: "Valtaris Studio",
       flags: {
         allow_organization_webhooks: {{settings.ALLOW_ORGANIZATION_WEBHOOKS|yesno:"true,false"}},
         storage_persistence: {{ settings.STORAGE_PERSISTENCE|yesno:"true,false" }},

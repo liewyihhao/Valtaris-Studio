@@ -5,7 +5,7 @@
   /* Deprecated: [DO NOT USE] */
   --black-raw: 0 0 0;
   --white-raw: 255 255 255;
-  --accent_color-raw: 86 111 207;
+  --accent_color-raw: 26 150 124;
   --danger_color-raw: 221 0 0;
   --danger_color_dimmed: rgb(var(--danger_color-raw) / 50%);
   --black: rgb(var(--black-raw));
@@ -50,7 +50,7 @@
   --red_10: #5c0011;
   --grape_0: var(--color-grape-000);
   --grape_100: var(--color-grape-100);
-  --grape_500-raw: 86 111 207;
+  --grape_500-raw: 26 150 124;
   --grape_500: var(--color-grape-500);
   --grape_600: var(--color-grape-600);
   --grape_700: var(--color-grape-700);

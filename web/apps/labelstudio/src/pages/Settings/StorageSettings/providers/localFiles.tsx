@@ -23,7 +23,7 @@ const LocalFilesServingWarning = () => {
   return (
     <>
       <Message variant="negative" title="Local file serving is disabled">
-        Set the "LOCAL_FILES_SERVING_ENABLED" environment variable to "true" and restart Label Studio to enable Local
+        Set the "LOCAL_FILES_SERVING_ENABLED" environment variable to "true" and restart Valtaris Studio to enable Local
         Files storage. See the documentation for details:{" "}
         <a href="https://labelstud.io/guide/storage.html#Local-storage" target="_blank" rel="noreferrer">
           Local Storage documentation
@@ -45,7 +45,7 @@ const LocalFilesServingWarning = () => {
 export const localFilesProvider: ProviderConfig = {
   name: "localfiles",
   title: "Local Files",
-  description: "Configure your local file storage connection with all required Label Studio settings",
+  description: "Configure your local file storage connection with all required Valtaris Studio settings",
   icon: () => (
     <IconFolderOpen
       width={40}

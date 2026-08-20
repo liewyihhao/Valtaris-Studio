@@ -309,17 +309,19 @@
   --color-sand-900: rgb(18 17 13);
   --color-sand-950: rgb(13 12 9);
   --color-sand-000: rgb(253 253 252);
-  --color-grape-100: rgb(212 219 251);
-  --color-grape-200: rgb(182 195 248);
-  --color-grape-300: rgb(153 171 245);
-  --color-grape-400: rgb(109 135 241);
-  --color-grape-500: rgb(97 122 218);
-  --color-grape-600: rgb(87 108 193);
-  --color-grape-700: rgb(76 95 169);
-  --color-grape-800: rgb(55 68 122);
-  --color-grape-900: rgb(43 54 96);
-  --color-grape-950: rgb(17 22 38);
-  --color-grape-000: rgb(240 243 254);
+  /* Valtaris teal ("Valtaris signal") ramp — hue-shifted from the stock blue,
+     lightness preserved per step so existing contrast relationships hold. */
+  --color-grape-100: rgb(207 244 234);
+  --color-grape-200: rgb(162 231 214);
+  --color-grape-300: rgb(99 216 190);
+  --color-grape-400: rgb(63 203 175);
+  --color-grape-500: rgb(26 150 124);
+  --color-grape-600: rgb(22 133 108);
+  --color-grape-700: rgb(17 104 87);
+  --color-grape-800: rgb(13 83 68);
+  --color-grape-900: rgb(10 59 48);
+  --color-grape-950: rgb(6 35 28);
+  --color-grape-000: rgb(236 251 247);
   --color-blueberry-100: rgb(212 231 251);
   --color-blueberry-200: rgb(182 214 248);
   --color-blueberry-300: rgb(153 197 245);
@@ -470,8 +472,8 @@
   --letter-spacing--20: -0.0125rem;
   --letter-spacing--15: -0.0094rem;
   --letter-spacing--10: -0.0063rem;
-  --font-family-base: "Figtree";
-  --font-family-mono: "IBM Plex Mono", monospace;
+  --font-family-base: "Montserrat";
+  --font-family-mono: "JetBrains Mono", "IBM Plex Mono", monospace;
   --font-style-normal: normal;
   --font-style-italic: italic;
   --corner-radius-0: var(--spacing-0);
