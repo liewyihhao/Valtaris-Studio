@@ -22,7 +22,7 @@ export const resolveThemePreference = (themeSelection: string) => {
 };
 
 export const getStoredThemePreference = () =>
-  window.localStorage.getItem(PREFERRED_COLOR_SCHEME_KEY) ?? THEME_OPTIONS[1];
+  window.localStorage.getItem(PREFERRED_COLOR_SCHEME_KEY) ?? THEME_OPTIONS[2];
 
 export const getCurrentTheme = () => resolveThemePreference(getStoredThemePreference());
 export const themeAtom = atom<string>(getCurrentTheme());
