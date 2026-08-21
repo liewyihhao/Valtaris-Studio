@@ -3,7 +3,7 @@
 {% load filters %}
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-color-scheme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="author" content=""/>
@@ -43,7 +43,7 @@
         if (themeColor === "Auto") {
           themeColor = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "Dark" : "Light"
         } else if (!themeColor) {
-          themeColor = "Light";
+          themeColor = "Dark";
         }
         document.documentElement.setAttribute("data-color-scheme", themeColor.toLowerCase());
       }

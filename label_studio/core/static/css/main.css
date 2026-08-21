@@ -3,12 +3,12 @@ html {
 }
 
 :root {
-  --font-sans: 'Figtree', sans-serif !important;
+  --font-sans: 'Montserrat', sans-serif !important;
   --font-mono: Monaco, monospace;
 
   /* Deprecated: [DO NOT USE] */
-  --sand_900: #12110D;
-  --sand_800: #262522;
+  --sand_900: #0E1015;
+  --sand_800: #181C25;
   --sand_700: #45433E;
   --sand_600: #6B6860;
   --sand_500: #A49F95;
@@ -18,12 +18,12 @@ html {
   --sand_100: #F9F8F6;
   --sand_0: #FDFDFC;
 
-  --grape_0: #F0F3FE;
-  --grape_100: #D4DBFB; 
-  --grape_500: #566FCF;
-  --grape_600: #576CC1;
-  --grape_700: #4C5FA9;
-  --grape_800: #37447A;
+  --grape_0: #ECFBF7;
+  --grape_100: #CFF4EA; 
+  --grape_500: #1A967C;
+  --grape_600: #16856C;
+  --grape_700: #116857;
+  --grape_800: #0D5344;
 
   --kale_0: #F4F9F9;
   --kale_400: #57B7AB;
@@ -48,7 +48,7 @@ html {
   --red_7: #CF1322;
   --red_10: #5C0011;
 
-  --primary_link: #566FCF;
+  --primary_link: #1A967C;
 
   overflow-x: unset !important;
 
@@ -87,17 +87,17 @@ html {
   --color-fig-800: rgb(109 74 136);
   --color-fig-900: rgb(91 62 114);
   --color-fig-950: rgb(31 21 38);
-  --color-grape-000: rgb(240 243 254);
-  --color-grape-100: rgb(212 219 251);
-  --color-grape-200: rgb(182 195 248);
-  --color-grape-300: rgb(153 171 245);
-  --color-grape-400: rgb(109 135 241);
-  --color-grape-500: rgb(97 122 218);
-  --color-grape-600: rgb(87 108 193);
-  --color-grape-700: rgb(76 95 169);
-  --color-grape-800: rgb(55 68 122);
-  --color-grape-900: rgb(43 54 96);
-  --color-grape-950: rgb(17 22 38);
+  --color-grape-000: rgb(236 251 247);
+  --color-grape-100: rgb(207 244 234);
+  --color-grape-200: rgb(162 231 214);
+  --color-grape-300: rgb(99 216 190);
+  --color-grape-400: rgb(63 203 175);
+  --color-grape-500: rgb(26 150 124);
+  --color-grape-600: rgb(22 133 108);
+  --color-grape-700: rgb(17 104 87);
+  --color-grape-800: rgb(13 83 68);
+  --color-grape-900: rgb(10 59 48);
+  --color-grape-950: rgb(6 35 28);
   --color-kale-000: rgb(244 249 249);
   --color-kale-100: rgb(212 241 235);
   --color-kale-200: rgb(171 228 218);
@@ -161,10 +161,10 @@ html {
   --color-sand-500: rgb(164 159 149);
   --color-sand-600: rgb(107 104 96);
   --color-sand-700: rgb(69 67 62);
-  --color-sand-800: rgb(38 37 34);
-  --color-sand-850: rgb(30 29 26);
-  --color-sand-900: rgb(18 17 13);
-  --color-sand-950: rgb(13 12 9);
+  --color-sand-800: rgb(24 28 37);
+  --color-sand-850: rgb(20 23 31);
+  --color-sand-900: rgb(14 16 21);
+  --color-sand-950: rgb(8 9 12);
 
   /* Semantic Tokens */
   /* Semantic Tokens: Colors */
@@ -1010,4 +1010,36 @@ hotkey i {
 
 .ant-modal-content {
     background-color: var(--color-neutral-background);
+}
+
+/* Valtaris dark theme for server-rendered (login / error / account) pages */
+[data-color-scheme="dark"] {
+  --color-neutral-surface: var(--color-sand-850);
+  --color-neutral-surface-hover: var(--color-sand-800);
+  --color-neutral-surface-active: var(--color-sand-900);
+  --color-neutral-surface-inset: var(--color-sand-950);
+  --color-neutral-background: var(--color-sand-800);
+  --color-neutral-background-bold: var(--color-sand-900);
+  --color-neutral-emphasis: var(--color-sand-900);
+  --color-neutral-emphasis-subtle: var(--color-sand-850);
+  --color-neutral-content: var(--color-sand-100);
+  --color-neutral-content-subtle: var(--color-sand-400);
+  --color-neutral-content-subtler: var(--color-sand-500);
+  --color-neutral-content-subtlest: var(--color-sand-600);
+  --color-neutral-icon: var(--color-sand-100);
+  --color-neutral-border: var(--color-sand-700);
+  --color-neutral-border-subtle: var(--color-sand-800);
+  --color-neutral-border-subtler: var(--color-sand-850);
+  --color-neutral-border-bold: var(--color-sand-600);
+  --color-neutral-inverted-surface: var(--color-sand-200);
+  --color-neutral-inverted-content: var(--color-sand-800);
+  --color-neutral-inverted-background: var(--color-sand-000);
+  --color-primary-surface: var(--color-grape-600);
+  --color-primary-surface-hover: var(--color-grape-500);
+  --color-primary-surface-active: var(--color-grape-700);
+  --color-primary-surface-content: var(--color-grape-000);
+  --color-primary-content: var(--color-grape-400);
+  --color-primary-content-hover: var(--color-grape-300);
+  --color-primary-content-subtle: var(--color-grape-500);
+  --color-primary-icon: var(--color-grape-400);
 }
