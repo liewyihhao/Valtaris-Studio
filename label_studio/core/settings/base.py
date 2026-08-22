@@ -263,6 +263,7 @@ INSTALLED_APPS = [
     'ml_model_providers',
     'jwt_auth',
     'session_policy',
+    'valtaris_sso',  # Valtaris Portal bridge: SSO login + Portal-driven access control
 ]
 
 MIDDLEWARE = [
