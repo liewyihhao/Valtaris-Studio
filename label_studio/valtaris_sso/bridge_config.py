@@ -24,3 +24,11 @@ def webhook_secret():
 
 def portal_webhook_url():
     return f"{portal_base()}/api/webhooks/label-studio"
+
+
+def service_account_key():
+    return cfg("VALTARIS_SERVICE_ACCOUNT_KEY", "") or ""
+
+
+def portal_work_summary_url():
+    return f"{portal_base()}/api/integration/work-summary"

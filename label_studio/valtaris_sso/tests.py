@@ -224,3 +224,103 @@ class TaskMetaTests(TestCase):
         task.refresh_from_db()
         self.assertNotIn("valtaris_user_id", task.meta)  # not invented without a mapping
         self.assertEqual(task.meta["item_count"], 1)
+
+
+# --- Phase 5 #4: work-summary aggregation (DB-backed) ---
+import datetime as _dt  # noqa: E402
+
+
+class WorkSummaryAggregationTests(TestCase):
+    def _task(self, project, meta):
+        from tasks.models import Task
+
+        return Task.objects.create(project=project, data={}, meta=meta)
+
+    def test_compute_summaries_excludes_gold_cancelled_unattributed(self):
+        from tasks.models import Annotation
+
+        from valtaris_sso.aggregation import compute_summaries
+
+        _user, _org, project = _make_org_project()
+        t_paid = self._task(project, {"valtaris_user_id": "pA", "item_count": 3})
+        t_paid2 = self._task(project, {"valtaris_user_id": "pA", "item_count": 1})
+        t_gold = self._task(project, {"valtaris_user_id": "pA", "item_count": 5, "is_gold": True})
+        t_unattr = self._task(project, {"item_count": 2})
+
+        # bulk_create skips LS annotation signals; created_at defaults to now.
+        Annotation.objects.bulk_create([
+            Annotation(task=t_paid, project=project, result=[]),
+            Annotation(task=t_paid2, project=project, result=[]),
+            Annotation(task=t_gold, project=project, result=[]),
+            Annotation(task=t_unattr, project=project, result=[]),
+            Annotation(task=t_paid, project=project, result=[], was_cancelled=True),
+        ])
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        rows, stats = compute_summaries(now - _dt.timedelta(days=1), now + _dt.timedelta(days=1))
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["userId"], "pA")
+        self.assertEqual(row["taskType"], "P")  # project title fallback
+        self.assertEqual(row["unitsCompleted"], 4)   # 3 + 1 (gold/cancelled/unattributed excluded)
+        self.assertEqual(row["unitsApproved"], 4)    # completed-only policy
+        self.assertEqual(row["unitsRejected"], 0)
+        self.assertIsNone(row["avgQualityScore"])
+        self.assertEqual(stats, {
+            "annotations": 5, "counted": 2, "skipped_gold": 1,
+            "skipped_cancelled": 1, "unattributed": 1,
+        })
+
+    def test_task_type_prefers_track_tag(self):
+        from valtaris_sso.aggregation import task_type_for
+
+        class P:
+            id = 1
+            title = "My Project"
+            meta = {"valtaris_track": "img-bbox"}
+
+        self.assertEqual(task_type_for(P()), "img-bbox")
+        P.meta = {}
+        self.assertEqual(task_type_for(P()), "My Project")
+
+    def test_post_summaries_batches_and_reads_written(self):
+        from unittest import mock as _mock
+
+        from valtaris_sso import aggregation as A
+
+        rows = [{"userId": f"u{i}", "periodStart": "s", "periodEnd": "e", "taskType": "t",
+                 "unitsCompleted": 1, "unitsApproved": 1, "unitsRejected": 0, "avgQualityScore": None}
+                for i in range(1500)]
+
+        resp = _mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True, "written": 1000}
+        with self.settings(VALTARIS_SERVICE_ACCOUNT_KEY="vlt_test"):
+            with _mock.patch.object(A.requests, "post", return_value=resp) as m:
+                result = A.post_summaries(rows)
+        self.assertEqual(result["batches"], 2)     # 1500 -> 1000 + 500
+        self.assertEqual(m.call_count, 2)
+        self.assertEqual(result["written"], 2000)  # mock returns 1000 per batch
+
+    def test_post_summaries_422_unknown_users(self):
+        from unittest import mock as _mock
+
+        from valtaris_sso import aggregation as A
+
+        rows = [{"userId": "ghost", "periodStart": "s", "periodEnd": "e", "taskType": "t",
+                 "unitsCompleted": 1, "unitsApproved": 1, "unitsRejected": 0, "avgQualityScore": None}]
+        resp = _mock.Mock(status_code=422)
+        resp.json.return_value = {"error": "Unknown userId(s).", "unknownUserIds": ["ghost"]}
+        with self.settings(VALTARIS_SERVICE_ACCOUNT_KEY="vlt_test"):
+            with _mock.patch.object(A.requests, "post", return_value=resp):
+                result = A.post_summaries(rows)
+        self.assertEqual(result["written"], 0)
+        self.assertIn("ghost", result["unknown_user_ids"])
+
+    def test_post_summaries_dry_run_and_empty(self):
+        from valtaris_sso import aggregation as A
+
+        self.assertEqual(A.post_summaries([])["written"], 0)
+        dr = A.post_summaries([{"userId": "u"}], dry_run=True)
+        self.assertTrue(dr["dry_run"])
+        self.assertEqual(dr["would_post"], 1)
