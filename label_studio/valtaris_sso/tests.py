@@ -122,3 +122,105 @@ class WorkerCanPullTests(SimpleTestCase):
         with mock.patch.object(S, "_http_get_standing", return_value=("unavailable", "down")):
             with self.settings(VALTARIS_STANDING_FAILURE_MODE="open"):
                 self.assertTrue(S.worker_can_pull("u1", "img-bbox")[0])
+
+
+# --- Phase 5 #3: webhook registration + task-meta stamping (DB-backed) ---
+from types import SimpleNamespace  # noqa: E402
+
+from django.contrib.auth import get_user_model  # noqa: E402
+from django.test import TestCase  # noqa: E402
+
+
+def _make_org_project():
+    from organizations.models import Organization
+    from projects.models import Project
+
+    User = get_user_model()
+    user = User.objects.create_user(email="w@valtaris.test", password="p")
+    org = Organization.create_organization(created_by=user, title="T")
+    project = Project.objects.create(title="P", organization=org, created_by=user)
+    return user, org, project
+
+
+class WebhookSetupTests(TestCase):
+    def test_ensure_portal_webhook_idempotent_and_rotates(self):
+        from webhooks.models import Webhook
+
+        from valtaris_sso.webhook_setup import ensure_portal_webhook
+
+        _user, org, _project = _make_org_project()
+        url = "http://portal.test/api/webhooks/label-studio"
+
+        wh, created = ensure_portal_webhook(org, url=url, secret="sek")
+        self.assertTrue(created)
+        self.assertEqual(wh.url, url)
+        self.assertEqual(wh.headers.get("X-Valtaris-Webhook-Secret"), "sek")
+        self.assertFalse(wh.send_for_all_actions)
+        self.assertTrue(wh.send_payload)
+        self.assertTrue(wh.is_active)
+        self.assertEqual(set(wh.get_actions()), {"ANNOTATION_CREATED", "ANNOTATION_UPDATED"})
+
+        # Re-run rotates the secret and does not duplicate.
+        wh2, created2 = ensure_portal_webhook(org, url=url, secret="rotated")
+        self.assertFalse(created2)
+        self.assertEqual(wh2.id, wh.id)
+        self.assertEqual(wh2.headers.get("X-Valtaris-Webhook-Secret"), "rotated")
+        self.assertEqual(Webhook.objects.filter(organization=org).count(), 1)
+
+
+class TaskMetaTests(TestCase):
+    def test_stamp_task_meta(self):
+        from tasks.models import Task
+
+        from valtaris_sso.meta import stamp_task_meta
+
+        _user, _org, project = _make_org_project()
+        task = Task.objects.create(project=project, data={})
+        stamp_task_meta(task, valtaris_user_id="pid-1", item_count=5, is_gold=False)
+        task.refresh_from_db()
+        self.assertEqual(task.meta["valtaris_user_id"], "pid-1")
+        self.assertEqual(task.meta["item_count"], 5)
+        self.assertIs(task.meta["is_gold"], False)
+
+    def test_stamp_defaults_item_count(self):
+        from tasks.models import Task
+
+        from valtaris_sso.meta import stamp_task_meta
+
+        _user, _org, project = _make_org_project()
+        task = Task.objects.create(project=project, data={})
+        stamp_task_meta(task, valtaris_user_id="pid-1")
+        task.refresh_from_db()
+        self.assertEqual(task.meta["item_count"], 1)
+
+    def test_backfill_from_completing_worker(self):
+        from tasks.models import Task
+
+        from valtaris_sso.meta import backfill_valtaris_user_id
+        from valtaris_sso.models import ValtarisIdentity
+
+        user, _org, project = _make_org_project()
+        ValtarisIdentity.objects.create(user=user, portal_user_id="pid-42")
+        task = Task.objects.create(project=project, data={})
+        # Lightweight annotation stand-in (avoids triggering unrelated LS signals).
+        ann = SimpleNamespace(task=task, completed_by_id=user.id, ground_truth=True, id=1)
+
+        changed = backfill_valtaris_user_id(ann)
+        self.assertTrue(changed)
+        task.refresh_from_db()
+        self.assertEqual(task.meta["valtaris_user_id"], "pid-42")
+        self.assertIs(task.meta["is_gold"], True)
+        self.assertEqual(task.meta["item_count"], 1)
+
+    def test_backfill_no_mapping_no_userid(self):
+        from tasks.models import Task
+
+        from valtaris_sso.meta import backfill_valtaris_user_id
+
+        user, _org, project = _make_org_project()  # no ValtarisIdentity for this user
+        task = Task.objects.create(project=project, data={})
+        ann = SimpleNamespace(task=task, completed_by_id=user.id, ground_truth=False, id=2)
+        backfill_valtaris_user_id(ann)
+        task.refresh_from_db()
+        self.assertNotIn("valtaris_user_id", task.meta)  # not invented without a mapping
+        self.assertEqual(task.meta["item_count"], 1)
