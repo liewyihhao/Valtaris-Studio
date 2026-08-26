@@ -172,3 +172,32 @@ Idempotent on `(userId, periodStart, periodEnd, taskType, sourceSystem)`; add
 3. One ledger moves money (the webhook); work-summary is a view of it.
 4. Reactivation after a compliance/fraud block is manual (a human on the Portal).
 5. Gold tasks route to qualification scoring, not pay — excluded from summaries.
+
+---
+
+## 8. Enabling the live standing gate (provisioning)
+
+The standing gate at task-serve is **opt-in** and off by default.
+
+1. **Tag each gated project** with the track it serves + the minimum tier:
+   ```python
+   from valtaris_sso.projects_config import set_project_requirement
+   set_project_requirement(project, "img-bbox", "T2_skilled")
+   ```
+   Un-tagged projects are not gated (normal LS access). The track tag also
+   becomes the work-summary `taskType`.
+2. **Enable enforcement:** set `VALTARIS_ENFORCE_STANDING_GATE=true` and restart
+   Studio. `apps.ready()` then wraps `get_next_task` so a worker who is not
+   `active` + qualified for a project's (track, tier) is served no task
+   ("no tasks"). The wrapper fails OPEN on internal errors (never bricks serving);
+   the standing check itself fails closed on an undeterminable standing.
+3. **Sync membership** (visibility layer; enforcement is the gate):
+   ```bash
+   uv run python label_studio/manage.py valtaris_provision_worker --portal-id <User.id>
+   ```
+   Enables the worker on gated projects they qualify for, disables them elsewhere.
+   Requires the Studio user to already exist (created on first SSO login) and does
+   not reactivate a blocked account (manual on the Portal).
+
+Only bridge-managed users (those with a `ValtarisIdentity`) are gated — local/
+admin users pass through.

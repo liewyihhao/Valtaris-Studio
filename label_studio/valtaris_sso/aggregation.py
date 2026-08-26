@@ -35,13 +35,19 @@ MAX_ROWS_PER_CALL = 1000
 
 
 def task_type_for(project):
-    """Stable task-type tag for a project. Prefers the Valtaris track tag set by
-    provisioning (item #2); falls back to the project title, then id."""
+    """Stable task-type tag for a project. Prefers the Valtaris track requirement
+    (ValtarisProjectConfig); falls back to the project title, then id."""
     if project is None:
         return "unknown"
-    meta = getattr(project, "meta", None) or {}
-    track = meta.get("valtaris_track") if isinstance(meta, dict) else None
-    return track or (getattr(project, "title", None) or f"project-{getattr(project, 'id', '?')}")
+    try:
+        from .projects_config import get_project_requirement
+
+        track_slug, _min_tier = get_project_requirement(project)
+        if track_slug:
+            return track_slug
+    except Exception:
+        pass
+    return getattr(project, "title", None) or f"project-{getattr(project, 'id', '?')}"
 
 
 def _period_defaults(days_back=1):

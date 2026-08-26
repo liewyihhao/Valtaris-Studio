@@ -274,15 +274,12 @@ class WorkSummaryAggregationTests(TestCase):
 
     def test_task_type_prefers_track_tag(self):
         from valtaris_sso.aggregation import task_type_for
+        from valtaris_sso.projects_config import set_project_requirement
 
-        class P:
-            id = 1
-            title = "My Project"
-            meta = {"valtaris_track": "img-bbox"}
-
-        self.assertEqual(task_type_for(P()), "img-bbox")
-        P.meta = {}
-        self.assertEqual(task_type_for(P()), "My Project")
+        _user, _org, project = _make_org_project()
+        self.assertEqual(task_type_for(project), "P")  # project title fallback
+        set_project_requirement(project, "img-bbox", "T2_skilled")
+        self.assertEqual(task_type_for(project), "img-bbox")  # prefers the track tag
 
     def test_post_summaries_batches_and_reads_written(self):
         from unittest import mock as _mock
@@ -324,3 +321,113 @@ class WorkSummaryAggregationTests(TestCase):
         dr = A.post_summaries([{"userId": "u"}], dry_run=True)
         self.assertTrue(dr["dry_run"])
         self.assertEqual(dr["would_post"], 1)
+
+
+# --- Phase 5: provisioning + live standing gate (DB-backed) ---
+class ProjectConfigTests(TestCase):
+    def test_set_and_get_requirement(self):
+        from valtaris_sso.projects_config import get_project_requirement, set_project_requirement
+
+        _user, _org, project = _make_org_project()
+        self.assertEqual(get_project_requirement(project), (None, "T1_associate"))
+        set_project_requirement(project, "img-bbox", "T2_skilled")
+        self.assertEqual(get_project_requirement(project), ("img-bbox", "T2_skilled"))
+        # update_or_create is idempotent
+        set_project_requirement(project, "img-bbox", "T3_specialist")
+        self.assertEqual(get_project_requirement(project)[1], "T3_specialist")
+
+
+class WorkerGateTests(TestCase):
+    def test_non_bridge_user_passes(self):
+        from valtaris_sso.gate import worker_gate
+
+        user, _org, project = _make_org_project()  # no ValtarisIdentity
+        self.assertEqual(worker_gate(user, project), (True, "not_bridge_user"))
+
+    def test_ungated_project_passes(self):
+        from valtaris_sso.gate import worker_gate
+        from valtaris_sso.models import ValtarisIdentity
+
+        user, _org, project = _make_org_project()
+        ValtarisIdentity.objects.create(user=user, portal_user_id="pA")
+        self.assertEqual(worker_gate(user, project), (True, "project_ungated"))
+
+    def test_gated_project_checks_standing(self):
+        from unittest import mock as _mock
+
+        from valtaris_sso import gate as G
+        from valtaris_sso.models import ValtarisIdentity
+        from valtaris_sso.projects_config import set_project_requirement
+
+        user, _org, project = _make_org_project()
+        ValtarisIdentity.objects.create(user=user, portal_user_id="pA")
+        set_project_requirement(project, "img-bbox", "T2_skilled")
+        with _mock.patch.object(G, "worker_can_pull", return_value=(False, "not_qualified")) as m:
+            allowed, reason = G.worker_gate(user, project)
+        self.assertFalse(allowed)
+        m.assert_called_once_with("pA", "img-bbox", "T2_skilled")
+
+
+class GateInstallTests(TestCase):
+    def test_install_noop_when_disabled(self):
+        from valtaris_sso.gate import install_next_task_gate
+
+        with self.settings(VALTARIS_ENFORCE_STANDING_GATE=False):
+            self.assertFalse(install_next_task_gate())
+
+    def test_wrapper_denies_without_calling_original(self):
+        from unittest import mock as _mock
+
+        import projects.functions.next_task as nt
+
+        from valtaris_sso import gate as G
+
+        original = nt.get_next_task
+        with self.settings(VALTARIS_ENFORCE_STANDING_GATE=True):
+            self.assertTrue(G.install_next_task_gate())
+        try:
+            self.assertTrue(getattr(nt.get_next_task, "_valtaris_gated", False))
+            with _mock.patch.object(G, "worker_gate", return_value=(False, "denied")):
+                result = nt.get_next_task(None, None, None)
+            self.assertEqual(result, (None, {"valtaris_gate": "denied"}))
+        finally:
+            nt.get_next_task = original  # restore so other tests are unaffected
+
+
+class ProvisioningTests(TestCase):
+    def _gated_project(self, org, user, track, tier="T1_associate", title="P"):
+        from projects.models import Project
+
+        from valtaris_sso.projects_config import set_project_requirement
+
+        p = Project.objects.create(title=title, organization=org, created_by=user)
+        set_project_requirement(p, track, tier)
+        return p
+
+    def test_sync_membership_enables_and_disables(self):
+        from projects.models import ProjectMember
+
+        from valtaris_sso.provisioning import sync_project_membership
+
+        user, org, _p0 = _make_org_project()
+        proj = self._gated_project(org, user, "img-bbox", "T2_skilled")
+
+        qualified = {
+            "accountStatus": "active",
+            "qualifications": [{"trackSlug": "img-bbox", "tier": "T2_skilled", "status": "active"}],
+            "validatorCapabilities": [],
+        }
+        res = sync_project_membership(user, qualified, organization=org)
+        self.assertIn(proj.id, res["enabled"])
+        self.assertTrue(ProjectMember.objects.get(user=user, project=proj).enabled)
+
+        # Standing drops below required tier -> membership disabled.
+        dropped = {**qualified, "qualifications": [{"trackSlug": "img-bbox", "tier": "T1_associate", "status": "active"}]}
+        res2 = sync_project_membership(user, dropped, organization=org)
+        self.assertIn(proj.id, res2["disabled"])
+        self.assertFalse(ProjectMember.objects.get(user=user, project=proj).enabled)
+
+    def test_provision_worker_no_user(self):
+        from valtaris_sso.provisioning import provision_worker
+
+        self.assertEqual(provision_worker("ghost-portal-id")["reason"], "no_studio_user_yet")
