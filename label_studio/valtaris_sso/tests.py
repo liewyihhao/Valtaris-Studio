@@ -557,3 +557,46 @@ class ValidatedAggregationTests(TestCase):
         self.assertEqual(by_uid["pidV"]["unitsAnnotated"], 0)
         self.assertEqual(stats["annotated"], 2)
         self.assertEqual(stats["validated"], 1)
+
+
+class DashboardTests(TestCase):
+    def test_dashboard_shows_counts(self):
+        from tasks.models import Annotation, Task
+
+        from valtaris_sso.models import ValtarisIdentity
+
+        User = get_user_model()
+        from organizations.models import Organization
+        from projects.models import Project, ProjectMember
+
+        user = User.objects.create_user(email="dash@v.test", password="p")
+        org = Organization.create_organization(created_by=user, title="T")
+        user.active_organization = org
+        user.save()
+        project = Project.objects.create(title="P", organization=org, created_by=user)
+        ProjectMember.objects.create(user=user, project=project, enabled=True)
+        ValtarisIdentity.objects.create(user=user, portal_user_id="pidDash")
+        t1 = Task.objects.create(project=project, data={})
+        t2 = Task.objects.create(project=project, data={})  # pending
+        Annotation.objects.bulk_create([
+            Annotation(task=t1, project=project, completed_by=user, result=[]),           # annotated
+            Annotation(task=t1, project=project, completed_by=user, result=_review_result("approve")),  # validated
+        ])
+
+        from django.test import RequestFactory
+        from valtaris_sso.dashboard import dashboard
+        req = RequestFactory().get("/valtaris/dashboard")
+        req.user = user
+        resp = dashboard(req)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("My Progress", body)
+        self.assertIn("pidDash", body)
+        self.assertIn("Annotated", body)
+        self.assertIn("Validated", body)
+        # 1 annotated, 1 validated, project shows 1 done / 1 pending / 2 total
+        self.assertIn(">1<", body)
+
+    def test_dashboard_requires_login(self):
+        resp = self.client.get("/valtaris/dashboard")
+        self.assertIn(resp.status_code, (302, 403))

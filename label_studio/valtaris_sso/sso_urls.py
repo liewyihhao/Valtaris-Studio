@@ -3,9 +3,10 @@ urls.py (see README.md)."""
 
 from django.urls import path
 
-from . import sso_views
+from . import dashboard, sso_views
 
 urlpatterns = [
     path("sso/login", sso_views.sso_login, name="valtaris_sso_login"),
     path("api/valtaris/set-active", sso_views.set_active, name="valtaris_set_active"),
+    path("valtaris/dashboard", dashboard.dashboard, name="valtaris_dashboard"),
 ]
