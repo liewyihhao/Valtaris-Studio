@@ -61,21 +61,35 @@ def _period_defaults(days_back=1):
 
 
 def compute_summaries(period_start, period_end):
-    """Aggregate annotations in [period_start, period_end) into work-summary rows.
+    """Aggregate annotations in [period_start, period_end) into work-summary rows
+    carrying per-worker ANNOTATED and VALIDATED counts (contract C4).
 
-    Returns (rows, stats) where rows is a list of dicts ready to POST and stats
-    reports {annotations, counted, skipped_gold, skipped_cancelled, unattributed}.
+    - ANNOTATED: non-review, non-gold annotations, summing task.meta.item_count,
+      credited to the annotator (task.meta.valtaris_user_id — the same basis the
+      pay webhook uses, so the two reconcile).
+    - VALIDATED: review annotations (result carries review_decision), one per
+      review, credited to the VALIDATOR (annotation.completed_by → Portal id).
+    Gold → qualification (excluded); cancelled → skip. A worker who both annotates
+    and validates in the period appears once per taskType with both counts.
+
+    Returns (rows, stats). stats: {annotations, annotated, validated, skipped_gold,
+    skipped_cancelled, unattributed, review_unattributed}.
     """
     from tasks.models import Annotation
+
+    from .review import extract_review, portal_id_for_user_id
 
     qs = (
         Annotation.objects.filter(created_at__gte=period_start, created_at__lt=period_end)
         .select_related("task", "project")
     )
 
-    # key: (valtaris_user_id, task_type) -> units
-    buckets: dict = {}
-    stats = {"annotations": 0, "counted": 0, "skipped_gold": 0, "skipped_cancelled": 0, "unattributed": 0}
+    annotated: dict = {}  # (portal_id, task_type) -> units
+    validated: dict = {}  # (portal_id, task_type) -> reviews
+    stats = {
+        "annotations": 0, "annotated": 0, "validated": 0,
+        "skipped_gold": 0, "skipped_cancelled": 0, "unattributed": 0, "review_unattributed": 0,
+    }
 
     for ann in qs.iterator():
         stats["annotations"] += 1
@@ -84,38 +98,55 @@ def compute_summaries(period_start, period_end):
             continue
         task = ann.task
         meta = (getattr(task, "meta", None) or {}) if task else {}
-        is_gold = bool(meta.get("is_gold")) or bool(getattr(ann, "ground_truth", False))
-        if is_gold:
+        project = ann.project or (task.project if task else None)
+        task_type = task_type_for(project)
+
+        # Review annotation -> VALIDATED, credited to the validator (completed_by).
+        if extract_review(ann) is not None:
+            validator_pid = portal_id_for_user_id(getattr(ann, "completed_by_id", None))
+            if not validator_pid:
+                stats["review_unattributed"] += 1
+                continue
+            validated[(validator_pid, task_type)] = validated.get((validator_pid, task_type), 0) + 1
+            stats["validated"] += 1
+            continue
+
+        # Ordinary annotation -> ANNOTATED (gold excluded; credited to annotator).
+        if bool(meta.get("is_gold")) or bool(getattr(ann, "ground_truth", False)):
             stats["skipped_gold"] += 1
             continue
         valtaris_user_id = meta.get("valtaris_user_id")
         if not valtaris_user_id:
             stats["unattributed"] += 1
             continue
-        project = ann.project or (task.project if task else None)
-        task_type = task_type_for(project)
         try:
             units = int(meta.get("item_count", 1))
         except (TypeError, ValueError):
             units = 1
-        buckets[(valtaris_user_id, task_type)] = buckets.get((valtaris_user_id, task_type), 0) + units
-        stats["counted"] += 1
+        annotated[(valtaris_user_id, task_type)] = annotated.get((valtaris_user_id, task_type), 0) + units
+        stats["annotated"] += units
 
     ps = period_start.isoformat()
     pe = period_end.isoformat()
-    rows = [
-        {
+    keys = sorted(set(annotated) | set(validated))
+    rows = []
+    for uid, task_type in keys:
+        n_annotated = annotated.get((uid, task_type), 0)
+        n_validated = validated.get((uid, task_type), 0)
+        rows.append({
             "userId": uid,
             "periodStart": ps,
             "periodEnd": pe,
             "taskType": task_type,
-            "unitsCompleted": units,
-            "unitsApproved": units,  # completed-only policy; Portal ledger is pay authority
+            "unitsAnnotated": n_annotated,
+            "unitsValidated": n_validated,
+            # Back-compat with the base work-summary schema (completed-only policy;
+            # Portal payout ledger remains the pay authority):
+            "unitsCompleted": n_annotated,
+            "unitsApproved": n_annotated,
             "unitsRejected": 0,
             "avgQualityScore": None,
-        }
-        for (uid, task_type), units in sorted(buckets.items())
-    ]
+        })
     return rows, stats
 
 

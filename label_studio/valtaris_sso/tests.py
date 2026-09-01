@@ -268,9 +268,11 @@ class WorkSummaryAggregationTests(TestCase):
         self.assertEqual(row["unitsRejected"], 0)
         self.assertIsNone(row["avgQualityScore"])
         self.assertEqual(stats, {
-            "annotations": 5, "counted": 2, "skipped_gold": 1,
-            "skipped_cancelled": 1, "unattributed": 1,
+            "annotations": 5, "annotated": 4, "validated": 0, "skipped_gold": 1,
+            "skipped_cancelled": 1, "unattributed": 1, "review_unattributed": 0,
         })
+        self.assertEqual(row["unitsAnnotated"], 4)
+        self.assertEqual(row["unitsValidated"], 0)
 
     def test_task_type_prefers_track_tag(self):
         from valtaris_sso.aggregation import task_type_for
@@ -431,3 +433,127 @@ class ProvisioningTests(TestCase):
         from valtaris_sso.provisioning import provision_worker
 
         self.assertEqual(provision_worker("ghost-portal-id")["reason"], "no_studio_user_yet")
+
+
+# --- Dataset flow: validation/review (C3) + validated aggregation (D) ---
+def _review_result(decision="approve", code=None, detail=None):
+    res = [{"from_name": "review_decision", "to_name": "x", "type": "choices",
+            "value": {"choices": [decision]}}]
+    if code is not None:
+        res.append({"from_name": "review_reason_code", "to_name": "x", "type": "choices",
+                    "value": {"choices": [code]}})
+    if detail is not None:
+        res.append({"from_name": "review_reason_detail", "to_name": "x", "type": "textarea",
+                    "value": {"text": [detail]}})
+    return res
+
+
+class ReviewDetectTests(SimpleTestCase):
+    def test_extract_review(self):
+        from valtaris_sso.review import extract_review
+
+        self.assertIsNone(extract_review(SimpleNamespace(result=[])))
+        self.assertIsNone(extract_review(SimpleNamespace(result=[{"from_name": "label", "value": {"choices": ["cat"]}}])))
+        r = extract_review(SimpleNamespace(result=_review_result("reject", "blurry", "too dark")))
+        self.assertEqual(r, {"decision": "reject", "reason_code": "blurry", "reason_detail": "too dark"})
+
+    def test_unrecognized_decision_ignored(self):
+        from valtaris_sso.review import extract_review
+
+        self.assertIsNone(extract_review(SimpleNamespace(result=_review_result("maybe"))))
+
+
+class ReviewEmitTests(TestCase):
+    def _setup(self):
+        from tasks.models import Annotation, Task
+
+        from valtaris_sso.models import ValtarisIdentity
+
+        User = get_user_model()
+        from organizations.models import Organization
+        from projects.models import Project
+
+        annot = User.objects.create_user(email="ann@v.test", password="p")
+        val = User.objects.create_user(email="val@v.test", password="p")
+        org = Organization.create_organization(created_by=annot, title="T")
+        project = Project.objects.create(title="P", organization=org, created_by=annot)
+        ValtarisIdentity.objects.create(user=annot, portal_user_id="pidA")
+        ValtarisIdentity.objects.create(user=val, portal_user_id="pidV")
+        task = Task.objects.create(project=project, data={}, meta={
+            "valtaris_user_id": "pidA", "valtaris_project": "batch1", "source_row_id": "r1", "item_count": 2})
+        a = Annotation.objects.bulk_create([Annotation(task=task, project=project, completed_by=annot, result=[])])[0]
+        rev = Annotation.objects.bulk_create([
+            Annotation(task=task, project=project, completed_by=val, result=_review_result("approve"))])[0]
+        return annot, val, project, task, a, rev
+
+    def test_build_review_payload(self):
+        from valtaris_sso.review import build_review_payload
+
+        _annot, _val, _project, _task, _a, rev = self._setup()
+        payload = build_review_payload(rev)
+        self.assertEqual(payload, {
+            "validatorUserId": "pidV", "project": "batch1", "sourceRowId": "r1",
+            "annotatorUserId": "pidA", "decision": "approve", "reasonCode": None, "reasonDetail": None,
+        })
+
+    def test_ordinary_annotation_is_not_a_review(self):
+        from valtaris_sso.review import build_review_payload
+
+        _annot, _val, _project, _task, a, _rev = self._setup()
+        self.assertIsNone(build_review_payload(a))
+
+    def test_post_review_requires_key(self):
+        from valtaris_sso.review import post_review
+
+        with self.settings(VALTARIS_SERVICE_ACCOUNT_KEY=""):
+            with self.assertRaises(ValueError):
+                post_review({"validatorUserId": "pidV"})
+
+    def test_post_review_sends_bearer(self):
+        from unittest import mock as _mock
+
+        from valtaris_sso import review as R
+
+        with self.settings(VALTARIS_SERVICE_ACCOUNT_KEY="vlt_test"):
+            with _mock.patch.object(R.requests, "post", return_value=_mock.Mock(status_code=200)) as m:
+                code = R.post_review({"validatorUserId": "pidV"})
+        self.assertEqual(code, 200)
+        _args, kwargs = m.call_args
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer vlt_test")
+        self.assertTrue(kwargs["url"].endswith("/api/integration/review") if "url" in kwargs else m.call_args[0][0].endswith("/api/integration/review"))
+
+
+class ValidatedAggregationTests(TestCase):
+    def test_annotated_and_validated_split(self):
+        import datetime as _dt
+
+        from tasks.models import Annotation, Task
+
+        from valtaris_sso.aggregation import compute_summaries
+        from valtaris_sso.models import ValtarisIdentity
+
+        User = get_user_model()
+        from organizations.models import Organization
+        from projects.models import Project
+
+        annot = User.objects.create_user(email="ann2@v.test", password="p")
+        val = User.objects.create_user(email="val2@v.test", password="p")
+        org = Organization.create_organization(created_by=annot, title="T")
+        project = Project.objects.create(title="P", organization=org, created_by=annot)
+        ValtarisIdentity.objects.create(user=annot, portal_user_id="pidA")
+        ValtarisIdentity.objects.create(user=val, portal_user_id="pidV")
+        task = Task.objects.create(project=project, data={}, meta={"valtaris_user_id": "pidA", "item_count": 2})
+        Annotation.objects.bulk_create([
+            Annotation(task=task, project=project, completed_by=annot, result=[]),
+            Annotation(task=task, project=project, completed_by=val, result=_review_result("approve")),
+        ])
+        now = _dt.datetime.now(_dt.timezone.utc)
+        rows, stats = compute_summaries(now - _dt.timedelta(days=1), now + _dt.timedelta(days=1))
+
+        by_uid = {r["userId"]: r for r in rows}
+        self.assertEqual(by_uid["pidA"]["unitsAnnotated"], 2)
+        self.assertEqual(by_uid["pidA"]["unitsValidated"], 0)
+        self.assertEqual(by_uid["pidV"]["unitsValidated"], 1)
+        self.assertEqual(by_uid["pidV"]["unitsAnnotated"], 0)
+        self.assertEqual(stats["annotated"], 2)
+        self.assertEqual(stats["validated"], 1)

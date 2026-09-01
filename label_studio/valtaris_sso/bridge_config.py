@@ -32,3 +32,7 @@ def service_account_key():
 
 def portal_work_summary_url():
     return f"{portal_base()}/api/integration/work-summary"
+
+
+def portal_review_url():
+    return f"{portal_base()}/api/integration/review"

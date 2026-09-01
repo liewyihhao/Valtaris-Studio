@@ -19,10 +19,15 @@ def connect():
     from tasks.models import Annotation
 
     from .meta import backfill_valtaris_user_id
+    from .review import emit_review_for_annotation
 
     @receiver(post_save, sender=Annotation, dispatch_uid="valtaris_backfill_task_meta")
     def _on_annotation_saved(sender, instance, **kwargs):
+        # 1) Ensure the task carries attribution meta (annotator side).
         try:
             backfill_valtaris_user_id(instance)
         except Exception:
             logger.exception("Valtaris: failed to backfill task meta for annotation %s", getattr(instance, "id", "?"))
+        # 2) If this annotation is a validator's review, emit the C3 review event.
+        #    (No-op for ordinary annotations; best-effort, never raises.)
+        emit_review_for_annotation(instance)

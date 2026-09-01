@@ -201,3 +201,38 @@ The standing gate at task-serve is **opt-in** and off by default.
 
 Only bridge-managed users (those with a `ValtarisIdentity`) are gated — local/
 admin users pass through.
+
+---
+
+## 9. Dataset flow: validation/review (C3) + annotated/validated counts (C4)
+
+Imported tasks carry `meta.{valtaris_project, source_row_id, is_gold}` (C1); the
+annotation webhook (C2) echoes them automatically (the task serializer includes
+`meta`). Validation uses the **2nd-annotation-on-same-task** model:
+
+- A validator adds a second annotation whose result carries a `review_decision`
+  choice (`approve`|`reject`|`correction`), optionally `review_reason_code` and
+  `review_reason_detail`. Configure these `from_name`s in the project labeling
+  config (overridable via `VALTARIS_REVIEW_DECISION_FIELD` etc.).
+- On save, `review.emit_review_for_annotation` POSTs C3 to
+  `{PORTAL}/api/integration/review` (Bearer service key, scope `review:write`),
+  attributed to the validator (`completed_by` → Portal id) and the original
+  annotator (the task's first non-review annotation). Best-effort; never breaks
+  the annotation save. Idempotent per (project, sourceRowId, validator).
+- **CROSS-REPO REQUIREMENT:** because the review is an annotation, the C2 webhook
+  ALSO fires for it. The Portal MUST treat any annotation whose `result` carries
+  `review_decision` as a review (NOT a pay annotation) — the field is present in
+  the C2 payload. Otherwise the annotator would be paid a second time.
+- **Aggregation (C4):** `compute_summaries` credits non-review annotations as
+  `unitsAnnotated` (to the annotator via `meta.valtaris_user_id`) and review
+  annotations as `unitsValidated` (to the validator via `completed_by`); gold and
+  cancelled excluded. Row field names `unitsAnnotated`/`unitsValidated` must match
+  the Portal's extended work-summary schema.
+
+Extra env (optional; defaults shown): `VALTARIS_REVIEW_DECISION_FIELD=review_decision`,
+`VALTARIS_REVIEW_REASON_CODE_FIELD=review_reason_code`,
+`VALTARIS_REVIEW_REASON_DETAIL_FIELD=review_reason_detail`, `VALTARIS_REVIEW_TIMEOUT=10`.
+
+Studio-side NOT built yet: **dashboards (E)** — per-person progress views for
+annotators (native LS project/DM views cover "N of M done") and a custom
+validator queue/reviews view.
