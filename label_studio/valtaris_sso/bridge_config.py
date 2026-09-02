@@ -36,3 +36,15 @@ def portal_work_summary_url():
 
 def portal_review_url():
     return f"{portal_base()}/api/integration/review"
+
+
+def portal_login_url():
+    """Where to send anyone who tries to reach the Studio login/signup pages."""
+    return cfg("VALTARIS_PORTAL_LOGIN_URL", "") or f"{portal_base()}/login"
+
+
+def portal_only_login_enabled():
+    """When on, direct Studio login/signup is disabled — access is SSO-only.
+    Default ON for the Valtaris fork; set VALTARIS_PORTAL_ONLY_LOGIN=false to allow
+    native Studio login (e.g. for local admin/debug)."""
+    return str(cfg("VALTARIS_PORTAL_ONLY_LOGIN", "true")).lower() in ("1", "true", "yes", "on")

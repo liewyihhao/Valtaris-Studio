@@ -15,6 +15,8 @@ MIDDLEWARE.append('organizations.middleware.DummyGetSessionMiddleware')
 MIDDLEWARE.append('core.middleware.UpdateLastActivityMiddleware')
 if INACTIVITY_SESSION_TIMEOUT_ENABLED:
     MIDDLEWARE.append('core.middleware.InactivitySessionTimeoutMiddleWare')
+# Valtaris: Studio is SSO-only — redirect the native login/signup pages to the Portal.
+MIDDLEWARE.append('valtaris_sso.middleware.PortalOnlyLoginMiddleware')
 
 ADD_DEFAULT_ML_BACKENDS = False
 

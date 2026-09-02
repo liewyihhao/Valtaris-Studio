@@ -236,3 +236,16 @@ Extra env (optional; defaults shown): `VALTARIS_REVIEW_DECISION_FIELD=review_dec
 Studio-side NOT built yet: **dashboards (E)** — per-person progress views for
 annotators (native LS project/DM views cover "N of M done") and a custom
 validator queue/reviews view.
+
+---
+
+## 10. Portal-only access (no direct Studio login)
+
+Studio is SSO-only: `valtaris_sso.middleware.PortalOnlyLoginMiddleware` redirects
+the native login/signup pages (`/user/login*`, `/user/signup*`) to
+`VALTARIS_PORTAL_LOGIN_URL` for unauthenticated requests, so no annotator,
+validator, or admin can sign in at Studio — the ONLY way to a Studio session is
+`/sso/login?token=…` from the Portal. Enabled by default; set
+`VALTARIS_PORTAL_ONLY_LOGIN=false` to restore native login for local admin/debug.
+Emergency ops without the Portal: `manage.py` (shell/commands) or temporarily
+flip the flag off + restart.

@@ -600,3 +600,40 @@ class DashboardTests(TestCase):
     def test_dashboard_requires_login(self):
         resp = self.client.get("/valtaris/dashboard")
         self.assertIn(resp.status_code, (302, 403))
+
+
+class PortalOnlyLoginTests(SimpleTestCase):
+    def _mw(self):
+        from django.http import HttpResponse
+
+        from valtaris_sso.middleware import PortalOnlyLoginMiddleware
+        return PortalOnlyLoginMiddleware(lambda req: HttpResponse("through"))
+
+    def _req(self, path, authed):
+        from django.test import RequestFactory
+        r = RequestFactory().get(path)
+        r.user = SimpleNamespace(is_authenticated=authed)
+        return r
+
+    def test_anonymous_login_page_redirects_to_portal(self):
+        with self.settings(VALTARIS_PORTAL_ONLY_LOGIN="true",
+                           VALTARIS_PORTAL_LOGIN_URL="http://localhost:3011/login"):
+            for path in ("/user/login/", "/user/signup/"):
+                resp = self._mw()(self._req(path, authed=False))
+                self.assertEqual(resp.status_code, 302)
+                self.assertEqual(resp["Location"], "http://localhost:3011/login")
+
+    def test_authenticated_user_passes_through(self):
+        with self.settings(VALTARIS_PORTAL_ONLY_LOGIN="true"):
+            resp = self._mw()(self._req("/user/login/", authed=True))
+            self.assertEqual(resp.content, b"through")
+
+    def test_non_login_paths_pass(self):
+        with self.settings(VALTARIS_PORTAL_ONLY_LOGIN="true"):
+            resp = self._mw()(self._req("/projects/", authed=False))
+            self.assertEqual(resp.content, b"through")
+
+    def test_disabled_flag_allows_native_login(self):
+        with self.settings(VALTARIS_PORTAL_ONLY_LOGIN="false"):
+            resp = self._mw()(self._req("/user/login/", authed=False))
+            self.assertEqual(resp.content, b"through")
