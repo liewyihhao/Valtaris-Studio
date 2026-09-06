@@ -108,6 +108,12 @@ def sso_login(request):
     # LS's InactivitySessionTimeoutMiddleWare logs out any session missing
     # 'last_login' (treats it as expired) — set it exactly as LS's own login does.
     request.session['last_login'] = time.time()
+    # Honor the Portal's per-project deep-link (&project=<lsProjectId>) so the
+    # worker lands directly in that project's data view, not the project index.
+    # Guard on a numeric id (LS project ids are integers) to avoid open redirect.
+    project = request.GET.get('project', '').strip()
+    if project.isdigit():
+        return redirect(f'/projects/{project}/data')
     return redirect(request.GET.get('next') or '/projects/')
 
 
