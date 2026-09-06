@@ -1,0 +1,46 @@
+# Valtaris Studio — production stack for studio.<yourdomain>.
+# Isolated Valtaris compose (kept separate from upstream ./docker-compose.yml so
+# upstream security-patch merges stay tractable). Run behind Caddy; Studio never
+# surfaces as a standalone "Label Studio" product.
+#
+#   cp studio.env.example studio.env   # fill in secrets
+#   docker compose --env-file studio.env up -d --build
+#   docker compose exec studio python label_studio/manage.py valtaris_register_webhook
+#
+# The image entrypoint runs DB migrations on start.
+
+services:
+  studio:
+    build:
+      context: ../..          # repo root (the fork's Dockerfile)
+    image: valtaris-studio:latest
+    restart: unless-stopped
+    env_file: ./studio.env
+    depends_on:
+      - studio-db
+      - studio-redis
+    volumes:
+      - studio_media:/label-studio/data/media
+    expose:
+      - "8080"                # Caddy reverse-proxies studio.<yourdomain> -> here
+
+  studio-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: valtaris_studio
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: ${POSTGRE_PASSWORD:-change-me}   # keep in sync with studio.env
+    volumes:
+      - studio_db_data:/var/lib/postgresql/data
+
+  studio-redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - studio_redis_data:/data
+
+volumes:
+  studio_media:
+  studio_db_data:
+  studio_redis_data:
