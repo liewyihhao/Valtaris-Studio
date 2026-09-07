@@ -109,11 +109,13 @@ def sso_login(request):
     # 'last_login' (treats it as expired) — set it exactly as LS's own login does.
     request.session['last_login'] = time.time()
     # Honor the Portal's per-project deep-link (&project=<lsProjectId>) so the
-    # worker lands directly in that project's data view, not the project index.
-    # Guard on a numeric id (LS project ids are integers) to avoid open redirect.
+    # worker lands directly in the project's label stream — the full-screen
+    # labeling flow that auto-advances to the next task on Submit, not the data
+    # grid. Guard on a numeric id (LS project ids are integers) to avoid an open
+    # redirect.
     project = request.GET.get('project', '').strip()
     if project.isdigit():
-        return redirect(f'/projects/{project}/data')
+        return redirect(f'/projects/{project}/data?labeling=1')
     return redirect(request.GET.get('next') or '/projects/')
 
 
